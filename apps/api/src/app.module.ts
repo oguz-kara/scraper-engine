@@ -4,8 +4,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter'
 import { GraphQLModule } from '@nestjs/graphql'
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo'
 import { BullModule } from '@nestjs/bull'
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
 import { JobManagerModule } from './modules/job-manager/job-manager.module'
 
 @Module({
@@ -17,11 +16,13 @@ import { JobManagerModule } from './modules/job-manager/job-manager.module'
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
-      playground: true,
+      playground: false,
       introspection: true,
+      include: [JobManagerModule],
+      path: '/graphql',
+      plugins: [ApolloServerPluginLandingPageLocalDefault()],
       subscriptions: {
         'graphql-ws': true,
-        'subscriptions-transport-ws': true,
       },
     }),
     BullModule.forRootAsync({
@@ -36,7 +37,5 @@ import { JobManagerModule } from './modules/job-manager/job-manager.module'
     }),
     JobManagerModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
