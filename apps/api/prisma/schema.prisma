@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// JOB MANAGER MODULE
+// ============================================
+model ScrapingJob {
+  id                String           @id @default(cuid())
+  provider          ScrapingProvider
+  status            JobStatus        @default(PENDING)
+  input             Json?
+  currentInput      Json?
+  processedInput    Json?
+  remainingInput    Json?
+  configuration     Json?
+  
+  // Metadata
+  createdAt         DateTime         @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  pausedAt          DateTime?
+  failedAt          DateTime?
+  duration          Int?             // milliseconds
+  
+  // Progress tracking
+  itemsScraped      Int              @default(0)
+  itemsPerSecond    Float?
+  progressPercentage Float           @default(0)
+  
+  // Error tracking
+  errorMessage      String?
+  errorCode         String?
+  retryCount        Int              @default(0)
+  lastRetryAt       DateTime?
+
+  // Relations (for future phases)
+  checkpoints       Checkpoint[]
+  scrapedItems      ScrapedItem[]
+  logs              ScrapingLog[]
+
+  @@index([provider, status])
+  @@index([createdAt])
+}
+
+enum ScrapingProvider {
+  SHELL
+  CASTROL
+  GOOGLE
+  LINKEDIN
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// CHECKPOINT MODULE
+// ============================================
+model Checkpoint {
+  id              String         @id @default(uuid())
+  jobId           String
+  sequenceNumber  Int
+  state           Json
+  itemsProcessed  Int            @default(0)
+  currentPage     Int?
+  lastItemId      String?
+  browserState    Json?
+  createdAt       DateTime       @default(now())
+
+  job             ScrapingJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, sequenceNumber])
+  @@index([jobId, createdAt])
+}
+
+// ============================================
+// DATA PROCESSOR MODULE
+// ============================================
+model ScrapedItem {
+  id              String         @id @default(uuid())
+  jobId           String
+  provider        ScrapingProvider
+  deduplicationKey String
+  rawHtml         String?        @db.Text
+  rawData         Json
+  normalizedData  Json
+  metadata        Json?
+  scrapedAt       DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+
+  job             ScrapingJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([deduplicationKey, provider])
+  @@index([jobId])
+  @@index([provider, createdAt])
+}
+
+model ScrapingLog {
+  id              String         @id @default(uuid())
+  jobId           String
+  level           LogLevel
+  message         String
+  context         Json?
+  error           Json?
+  createdAt       DateTime       @default(now())
+
+  job             ScrapingJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, level])
+  @@index([createdAt])
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+model ScrapingConfiguration {
+  id              String         @id @default(uuid())
+  name            String         @unique
+  provider        ScrapingProvider
+  selectors       Json
+  options         Json
+  headers         Json?
+  active          Boolean        @default(true)
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([provider, active])
+}
