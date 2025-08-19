@@ -1,6 +1,11 @@
 'use client'
 
-import { useJobQuery } from '@/graphql/generated/hooks'
+import { useEffect } from 'react'
+import { 
+  useJobQuery,
+  useJobStatusChangedSubscription,
+  useJobProgressUpdatedSubscription 
+} from '@/graphql/generated/hooks'
 import { Job } from '@/graphql/generated/sdk'
 import { JobStatusBadge } from './job-status-badge'
 import { JobProgress } from './job-progress'
@@ -22,12 +27,50 @@ function formatDate(dateString: string | null | undefined): string {
 
 export function JobDetail({ jobId }: { jobId: string }) {
   // ALWAYS use generated hooks
-  const { data, loading, error } = useJobQuery({
+  const { data, loading, error, refetch } = useJobQuery({
     variables: { jobId },
+    pollInterval: 2000, // Poll every 2 seconds for active jobs
+    errorPolicy: 'all',
   })
 
-  if (loading) return <JobDetailSkeleton />
-  if (error) return <JobDetailError error={error} />
+  // Subscribe to status changes for this specific job
+  const { data: statusData } = useJobStatusChangedSubscription({
+    variables: { jobId },
+    onError: (error) => {
+      console.warn('Status subscription error (will fallback to polling):', error.message)
+    },
+  })
+
+  // Subscribe to progress updates for this specific job
+  const { data: progressData } = useJobProgressUpdatedSubscription({
+    variables: { jobId },
+    onError: (error) => {
+      console.warn('Progress subscription error (will fallback to polling):', error.message)
+    },
+  })
+
+  // Refetch when status changes
+  useEffect(() => {
+    if (statusData?.jobStatusChanged && statusData.jobStatusChanged.id === jobId) {
+      console.log('🔄 Job status changed:', statusData.jobStatusChanged)
+      refetch()
+    }
+  }, [statusData, refetch, jobId])
+
+  // Update UI when progress changes
+  useEffect(() => {
+    if (progressData?.jobProgressUpdated && progressData.jobProgressUpdated.id === jobId) {
+      console.log('📈 Progress updated:', progressData.jobProgressUpdated)
+      // Option 1: Refetch entire job
+      refetch()
+      
+      // Option 2: Update cache directly for smoother updates
+      // apolloClient.cache.modify({...}) - could implement this later for better UX
+    }
+  }, [progressData, refetch, jobId])
+
+  if (loading && !data) return <JobDetailSkeleton />
+  if (error && !data) return <JobDetailError error={error} />
   if (!data?.job) return <JobNotFound />
 
   const job = data.job

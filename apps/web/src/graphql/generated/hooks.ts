@@ -228,6 +228,16 @@ export type JobQueryVariables = Exact<{
 
 export type JobQuery = { __typename?: 'Query', job: { __typename?: 'Job', completedAt?: any | null, configuration?: any | null, createdAt: any, currentInput?: any | null, duration?: number | null, errorCode?: string | null, errorMessage?: string | null, failedAt?: any | null, id: string, input?: any | null, itemsPerSecond?: number | null, itemsScraped: number, lastRetryAt?: any | null, pausedAt?: any | null, processedInput?: any | null, progressPercentage: number, provider: ScrapingProvider, remainingInput?: any | null, retryCount: number, startedAt?: any | null, status: JobStatus } };
 
+export type JobStatusChangedSubscriptionVariables = Exact<{ [key: string]: never; }>;
+
+
+export type JobStatusChangedSubscription = { __typename?: 'Subscription', jobStatusChanged: { __typename?: 'Job', completedAt?: any | null, configuration?: any | null, createdAt: any, currentInput?: any | null, duration?: number | null, errorCode?: string | null, errorMessage?: string | null, failedAt?: any | null, id: string, input?: any | null, itemsPerSecond?: number | null, itemsScraped: number, lastRetryAt?: any | null, pausedAt?: any | null, processedInput?: any | null, progressPercentage: number, provider: ScrapingProvider, remainingInput?: any | null, retryCount: number, startedAt?: any | null, status: JobStatus } };
+
+export type JobProgressUpdatedSubscriptionVariables = Exact<{ [key: string]: never; }>;
+
+
+export type JobProgressUpdatedSubscription = { __typename?: 'Subscription', jobProgressUpdated: { __typename?: 'JobProgress', jobId: string, percentage: number, itemsScraped: number, itemsPerSecond?: number | null, timestamp: any } };
+
 
 export const CreateJobDocument = gql`
     mutation createJob($input: CreateJobInput!) {
@@ -671,3 +681,85 @@ export type JobQueryHookResult = ReturnType<typeof useJobQuery>;
 export type JobLazyQueryHookResult = ReturnType<typeof useJobLazyQuery>;
 export type JobSuspenseQueryHookResult = ReturnType<typeof useJobSuspenseQuery>;
 export type JobQueryResult = Apollo.QueryResult<JobQuery, JobQueryVariables>;
+export const JobStatusChangedDocument = gql`
+    subscription jobStatusChanged {
+  jobStatusChanged {
+    completedAt
+    configuration
+    createdAt
+    currentInput
+    duration
+    errorCode
+    errorMessage
+    failedAt
+    id
+    input
+    itemsPerSecond
+    itemsScraped
+    lastRetryAt
+    pausedAt
+    processedInput
+    progressPercentage
+    provider
+    remainingInput
+    retryCount
+    startedAt
+    status
+  }
+}
+    `;
+
+/**
+ * __useJobStatusChangedSubscription__
+ *
+ * To run a query within a React component, call `useJobStatusChangedSubscription` and pass it any options that fit your needs.
+ * When your component renders, `useJobStatusChangedSubscription` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the subscription, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useJobStatusChangedSubscription({
+ *   variables: {
+ *   },
+ * });
+ */
+export function useJobStatusChangedSubscription(baseOptions?: Apollo.SubscriptionHookOptions<JobStatusChangedSubscription, JobStatusChangedSubscriptionVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useSubscription<JobStatusChangedSubscription, JobStatusChangedSubscriptionVariables>(JobStatusChangedDocument, options);
+      }
+export type JobStatusChangedSubscriptionHookResult = ReturnType<typeof useJobStatusChangedSubscription>;
+export type JobStatusChangedSubscriptionResult = Apollo.SubscriptionResult<JobStatusChangedSubscription>;
+export const JobProgressUpdatedDocument = gql`
+    subscription jobProgressUpdated {
+  jobProgressUpdated {
+    jobId
+    percentage
+    itemsScraped
+    itemsPerSecond
+    timestamp
+  }
+}
+    `;
+
+/**
+ * __useJobProgressUpdatedSubscription__
+ *
+ * To run a query within a React component, call `useJobProgressUpdatedSubscription` and pass it any options that fit your needs.
+ * When your component renders, `useJobProgressUpdatedSubscription` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the subscription, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useJobProgressUpdatedSubscription({
+ *   variables: {
+ *   },
+ * });
+ */
+export function useJobProgressUpdatedSubscription(baseOptions?: Apollo.SubscriptionHookOptions<JobProgressUpdatedSubscription, JobProgressUpdatedSubscriptionVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useSubscription<JobProgressUpdatedSubscription, JobProgressUpdatedSubscriptionVariables>(JobProgressUpdatedDocument, options);
+      }
+export type JobProgressUpdatedSubscriptionHookResult = ReturnType<typeof useJobProgressUpdatedSubscription>;
+export type JobProgressUpdatedSubscriptionResult = Apollo.SubscriptionResult<JobProgressUpdatedSubscription>;

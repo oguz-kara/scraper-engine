@@ -227,6 +227,16 @@ export type JobQueryVariables = Exact<{
 
 export type JobQuery = { __typename?: 'Query', job: { __typename?: 'Job', completedAt?: any | null, configuration?: any | null, createdAt: any, currentInput?: any | null, duration?: number | null, errorCode?: string | null, errorMessage?: string | null, failedAt?: any | null, id: string, input?: any | null, itemsPerSecond?: number | null, itemsScraped: number, lastRetryAt?: any | null, pausedAt?: any | null, processedInput?: any | null, progressPercentage: number, provider: ScrapingProvider, remainingInput?: any | null, retryCount: number, startedAt?: any | null, status: JobStatus } };
 
+export type JobStatusChangedSubscriptionVariables = Exact<{ [key: string]: never; }>;
+
+
+export type JobStatusChangedSubscription = { __typename?: 'Subscription', jobStatusChanged: { __typename?: 'Job', completedAt?: any | null, configuration?: any | null, createdAt: any, currentInput?: any | null, duration?: number | null, errorCode?: string | null, errorMessage?: string | null, failedAt?: any | null, id: string, input?: any | null, itemsPerSecond?: number | null, itemsScraped: number, lastRetryAt?: any | null, pausedAt?: any | null, processedInput?: any | null, progressPercentage: number, provider: ScrapingProvider, remainingInput?: any | null, retryCount: number, startedAt?: any | null, status: JobStatus } };
+
+export type JobProgressUpdatedSubscriptionVariables = Exact<{ [key: string]: never; }>;
+
+
+export type JobProgressUpdatedSubscription = { __typename?: 'Subscription', jobProgressUpdated: { __typename?: 'JobProgress', jobId: string, percentage: number, itemsScraped: number, itemsPerSecond?: number | null, timestamp: any } };
+
 
 export const CreateJobDocument = gql`
     mutation createJob($input: CreateJobInput!) {
@@ -449,6 +459,44 @@ export const JobDocument = gql`
   }
 }
     `;
+export const JobStatusChangedDocument = gql`
+    subscription jobStatusChanged {
+  jobStatusChanged {
+    completedAt
+    configuration
+    createdAt
+    currentInput
+    duration
+    errorCode
+    errorMessage
+    failedAt
+    id
+    input
+    itemsPerSecond
+    itemsScraped
+    lastRetryAt
+    pausedAt
+    processedInput
+    progressPercentage
+    provider
+    remainingInput
+    retryCount
+    startedAt
+    status
+  }
+}
+    `;
+export const JobProgressUpdatedDocument = gql`
+    subscription jobProgressUpdated {
+  jobProgressUpdated {
+    jobId
+    percentage
+    itemsScraped
+    itemsPerSecond
+    timestamp
+  }
+}
+    `;
 export type Requester<C = {}> = <R, V>(doc: DocumentNode, vars?: V, options?: C) => Promise<R> | AsyncIterable<R>
 export function getSdk<C>(requester: Requester<C>) {
   return {
@@ -475,6 +523,12 @@ export function getSdk<C>(requester: Requester<C>) {
     },
     job(variables: JobQueryVariables, options?: C): Promise<JobQuery> {
       return requester<JobQuery, JobQueryVariables>(JobDocument, variables, options) as Promise<JobQuery>;
+    },
+    jobStatusChanged(variables?: JobStatusChangedSubscriptionVariables, options?: C): AsyncIterable<JobStatusChangedSubscription> {
+      return requester<JobStatusChangedSubscription, JobStatusChangedSubscriptionVariables>(JobStatusChangedDocument, variables, options) as AsyncIterable<JobStatusChangedSubscription>;
+    },
+    jobProgressUpdated(variables?: JobProgressUpdatedSubscriptionVariables, options?: C): AsyncIterable<JobProgressUpdatedSubscription> {
+      return requester<JobProgressUpdatedSubscription, JobProgressUpdatedSubscriptionVariables>(JobProgressUpdatedDocument, variables, options) as AsyncIterable<JobProgressUpdatedSubscription>;
     }
   };
 }

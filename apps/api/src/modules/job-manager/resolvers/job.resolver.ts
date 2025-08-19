@@ -96,7 +96,7 @@ export class JobResolver {
     },
   })
   jobStatusChanged(@Args('jobId', { type: () => ID, nullable: true }) jobId?: string) {
-    return pubSub.asyncIterator('jobStatusChanged')
+    return pubSub.subscribe('jobStatusChanged')
   }
 
   @Subscription(() => JobProgressEntity, {
@@ -106,7 +106,7 @@ export class JobResolver {
     },
   })
   jobProgressUpdated(@Args('jobId', { type: () => ID, nullable: true }) jobId?: string) {
-    return pubSub.asyncIterator('jobProgressUpdated')
+    return pubSub.subscribe('jobProgressUpdated')
   }
 
   private mapToEntity(job: any): JobEntity {
