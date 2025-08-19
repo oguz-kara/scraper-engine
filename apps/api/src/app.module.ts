@@ -1,12 +1,12 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { EventEmitterModule } from '@nestjs/event-emitter';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { BullModule } from '@nestjs/bull';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { JobManagerModule } from './modules/job-manager/job-manager.module';
+import { Module } from '@nestjs/common'
+import { ConfigModule, ConfigService } from '@nestjs/config'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+import { GraphQLModule } from '@nestjs/graphql'
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo'
+import { BullModule } from '@nestjs/bull'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { JobManagerModule } from './modules/job-manager/job-manager.module'
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { JobManagerModule } from './modules/job-manager/job-manager.module';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService) => ({
+      useFactory: async configService => ({
         redis: {
           host: configService.get('REDIS_HOST', 'localhost'),
           port: configService.get('REDIS_PORT', 6379),

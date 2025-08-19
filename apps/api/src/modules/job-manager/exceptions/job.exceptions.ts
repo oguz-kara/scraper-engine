@@ -1,6 +1,6 @@
-import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { JobStatus } from '../dto/update-job.input';
-import { JobErrorCode } from '../enums/job-error-code.enum';
+import { NotFoundException, BadRequestException, ConflictException } from '@nestjs/common'
+import { JobStatus } from '../dto/update-job.input'
+import { JobErrorCode } from '../enums/job-error-code.enum'
 
 export class JobNotFoundException extends NotFoundException {
   constructor(jobId: string) {
@@ -11,7 +11,7 @@ export class JobNotFoundException extends NotFoundException {
         jobId,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -26,7 +26,7 @@ export class InvalidStateTransitionException extends BadRequestException {
         targetStatus,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -39,7 +39,7 @@ export class JobAlreadyRunningException extends ConflictException {
         jobId,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -53,7 +53,7 @@ export class JobCannotBePausedException extends BadRequestException {
         currentStatus,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -67,7 +67,7 @@ export class JobCannotBeResumedException extends BadRequestException {
         currentStatus,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -81,7 +81,7 @@ export class JobCannotBeCancelledException extends BadRequestException {
         currentStatus,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -95,7 +95,7 @@ export class JobProcessingFailedException extends BadRequestException {
         error,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -107,7 +107,7 @@ export class InvalidInputFormatException extends BadRequestException {
         code: JobErrorCode.INVALID_INPUT_FORMAT,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }
 
@@ -120,6 +120,6 @@ export class ProviderNotSupportedException extends BadRequestException {
         provider,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 }

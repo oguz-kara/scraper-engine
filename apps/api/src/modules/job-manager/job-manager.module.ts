@@ -1,13 +1,13 @@
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { Module } from '@nestjs/common'
+import { BullModule } from '@nestjs/bull'
+import { EventEmitterModule } from '@nestjs/event-emitter'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 
-import { PrismaService } from '../../common/database/prisma.service';
-import { JobRepository } from './repositories/job.repository';
-import { JobService } from './services/job.service';
-import { JobProcessor } from './processors/job.processor';
-import { JobResolver } from './resolvers/job.resolver';
+import { PrismaService } from '../../common/database/prisma.service'
+import { JobRepository } from './repositories/job.repository'
+import { JobService } from './services/job.service'
+import { JobProcessor } from './processors/job.processor'
+import { JobResolver } from './resolvers/job.resolver'
 
 @Module({
   imports: [
@@ -38,16 +38,7 @@ import { JobResolver } from './resolvers/job.resolver';
       inject: [ConfigService],
     }),
   ],
-  providers: [
-    PrismaService,
-    JobRepository,
-    JobService,
-    JobProcessor,
-    JobResolver,
-  ],
-  exports: [
-    JobService,
-    JobRepository,
-  ],
+  providers: [PrismaService, JobRepository, JobService, JobProcessor, JobResolver],
+  exports: [JobService, JobRepository],
 })
 export class JobManagerModule {}

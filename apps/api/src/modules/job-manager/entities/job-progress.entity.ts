@@ -1,36 +1,36 @@
-import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql'
 
 @ObjectType('JobProgress')
 export class JobProgressEntity {
   @Field(() => ID)
-  jobId: string;
+  jobId: string
 
   @Field(() => Float)
-  percentage: number;
+  percentage: number
 
   @Field(() => Int)
-  itemsScraped: number;
+  itemsScraped: number
 
   @Field(() => Float, { nullable: true })
-  itemsPerSecond?: number;
+  itemsPerSecond?: number
 
   @Field()
-  timestamp: Date;
+  timestamp: Date
 }
 
 @ObjectType('JobConnection')
 export class JobConnectionEntity {
   @Field(() => [JobEntity])
-  edges: JobEntity[];
+  edges: JobEntity[]
 
   @Field(() => Int)
-  totalCount: number;
+  totalCount: number
 
   @Field()
-  hasNextPage: boolean;
+  hasNextPage: boolean
 
   @Field()
-  hasPreviousPage: boolean;
+  hasPreviousPage: boolean
 }
 
-import { JobEntity } from './job.entity';
+import { JobEntity } from './job.entity'

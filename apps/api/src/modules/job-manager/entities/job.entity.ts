@@ -1,70 +1,70 @@
-import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql';
-import GraphQLJSON from 'graphql-type-json';
-import { ScrapingProvider } from '../dto/create-job.input';
-import { JobStatus } from '../dto/update-job.input';
+import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql'
+import GraphQLJSON from 'graphql-type-json'
+import { ScrapingProvider } from '../dto/create-job.input'
+import { JobStatus } from '../dto/update-job.input'
 
 @ObjectType('Job')
 export class JobEntity {
   @Field(() => ID)
-  id: string;
+  id: string
 
   @Field(() => ScrapingProvider)
-  provider: ScrapingProvider;
+  provider: ScrapingProvider
 
   @Field(() => JobStatus)
-  status: JobStatus;
+  status: JobStatus
 
   @Field(() => GraphQLJSON, { nullable: true })
-  input?: any;
+  input?: any
 
   @Field(() => GraphQLJSON, { nullable: true })
-  currentInput?: any;
+  currentInput?: any
 
   @Field(() => GraphQLJSON, { nullable: true })
-  processedInput?: any;
+  processedInput?: any
 
   @Field(() => GraphQLJSON, { nullable: true })
-  remainingInput?: any;
+  remainingInput?: any
 
   @Field(() => GraphQLJSON, { nullable: true })
-  configuration?: any;
+  configuration?: any
 
   @Field()
-  createdAt: Date;
+  createdAt: Date
 
   @Field({ nullable: true })
-  startedAt?: Date;
+  startedAt?: Date
 
   @Field({ nullable: true })
-  completedAt?: Date;
+  completedAt?: Date
 
   @Field({ nullable: true })
-  pausedAt?: Date;
+  pausedAt?: Date
 
   @Field({ nullable: true })
-  failedAt?: Date;
+  failedAt?: Date
 
   @Field(() => Int, { nullable: true })
-  duration?: number;
+  duration?: number
 
   @Field(() => Int)
-  itemsScraped: number;
+  itemsScraped: number
 
   @Field(() => Float, { nullable: true })
-  itemsPerSecond?: number;
+  itemsPerSecond?: number
 
   @Field(() => Float)
-  progressPercentage: number;
+  progressPercentage: number
 
   @Field({ nullable: true })
-  errorMessage?: string;
+  errorMessage?: string
 
   @Field({ nullable: true })
-  errorCode?: string;
+  errorCode?: string
 
   @Field(() => Int)
-  retryCount: number;
+  retryCount: number
 
   @Field({ nullable: true })
-  lastRetryAt?: Date;
+  lastRetryAt?: Date
 }
