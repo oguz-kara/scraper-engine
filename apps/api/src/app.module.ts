@@ -6,6 +6,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo'
 import { BullModule } from '@nestjs/bull'
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
 import { JobManagerModule } from './modules/job-manager/job-manager.module'
+import { ScraperEngineModule } from './modules/scraper-engine/scraper-engine.module'
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { JobManagerModule } from './modules/job-manager/job-manager.module'
       autoSchemaFile: true,
       playground: false,
       introspection: true,
-      include: [JobManagerModule],
+      include: [JobManagerModule, ScraperEngineModule],
       path: '/graphql',
       plugins: [ApolloServerPluginLandingPageLocalDefault()],
       subscriptions: {
@@ -36,6 +37,7 @@ import { JobManagerModule } from './modules/job-manager/job-manager.module'
       inject: [ConfigService],
     }),
     JobManagerModule,
+    ScraperEngineModule,
   ],
 })
 export class AppModule {}

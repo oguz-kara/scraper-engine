@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter'
 import { InjectQueue } from '@nestjs/bull'
 import type { Queue } from 'bull'
 import { ScrapingJob } from '@prisma/client'
+import { ConfigService } from '@nestjs/config'
 
 import { JobRepository } from '../repositories/job.repository'
 import { CreateJobInput } from '../dto/create-job.input'
@@ -28,6 +29,7 @@ export class JobService {
   constructor(
     private readonly jobRepository: JobRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
     @InjectQueue('scraper') private readonly scraperQueue: Queue,
   ) {}
 
@@ -106,7 +108,8 @@ export class JobService {
       attempt: job.retryCount + 1,
     }
 
-    await this.scraperQueue.add(`scraper.${job.provider.toLowerCase()}`, queueJobData, {
+    const jobPrefix = this.isSimulationMode() ? 'simulate' : 'scraper'
+    await this.scraperQueue.add(`${jobPrefix}.${job.provider.toLowerCase()}`, queueJobData, {
       attempts: 3,
       backoff: {
         type: 'exponential',
@@ -169,7 +172,8 @@ export class JobService {
       attempt: job.retryCount + 1,
     }
 
-    await this.scraperQueue.add(`scraper.${job.provider.toLowerCase()}`, queueJobData, {
+    const jobPrefix = this.isSimulationMode() ? 'simulate' : 'scraper'
+    await this.scraperQueue.add(`${jobPrefix}.${job.provider.toLowerCase()}`, queueJobData, {
       attempts: 3,
       backoff: {
         type: 'exponential',
@@ -341,6 +345,11 @@ export class JobService {
       this.logger.warn(`Failed to calculate progress for job ${job.id}`, error.message)
       return job.progressPercentage
     }
+  }
+
+  private isSimulationMode(): boolean {
+    const raw = this.configService.get<string>('SCRAPER_SIMULATION_MODE', 'false')
+    return raw === 'true' || raw === '1'
   }
 
   private getInputLength(input: any): number {

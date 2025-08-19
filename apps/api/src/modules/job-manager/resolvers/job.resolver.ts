@@ -12,6 +12,14 @@ import { JobPaginationInput } from '../dto/job-pagination.input'
 
 const pubSub = new PubSub() as any
 
+function getAsyncIterator(trigger: string) {
+  const method = pubSub.asyncIterator || pubSub.asyncIterableIterator
+  if (typeof method !== 'function') {
+    throw new Error('PubSub does not expose an async iterator method')
+  }
+  return method.call(pubSub, trigger)
+}
+
 @Resolver(() => JobEntity)
 export class JobResolver {
   private readonly logger = new Logger(JobResolver.name)
@@ -95,8 +103,8 @@ export class JobResolver {
       return variables.jobId ? payload.jobId === variables.jobId : true
     },
   })
-  jobStatusChanged(@Args('jobId', { type: () => ID, nullable: true }) jobId?: string) {
-    return pubSub.subscribe('jobStatusChanged')
+  jobStatusChanged(@Args('jobId', { type: () => ID, nullable: true }) _jobId?: string) {
+    return getAsyncIterator('jobStatusChanged')
   }
 
   @Subscription(() => JobProgressEntity, {
@@ -105,8 +113,8 @@ export class JobResolver {
       return variables.jobId ? payload.jobId === variables.jobId : true
     },
   })
-  jobProgressUpdated(@Args('jobId', { type: () => ID, nullable: true }) jobId?: string) {
-    return pubSub.subscribe('jobProgressUpdated')
+  jobProgressUpdated(@Args('jobId', { type: () => ID, nullable: true }) _jobId?: string) {
+    return getAsyncIterator('jobProgressUpdated')
   }
 
   private mapToEntity(job: any): JobEntity {
@@ -138,15 +146,17 @@ export class JobResolver {
   private setupEventListeners(): void {
     this.eventEmitter.on('job.statusChanged', payload => {
       this.logger.log(`Job status changed: ${payload.jobId} from ${payload.oldStatus} to ${payload.newStatus}`)
-      pubSub.publish('jobStatusChanged', {
-        jobId: payload.jobId,
-        jobStatusChanged: {
-          jobId: payload.jobId,
-          oldStatus: payload.oldStatus,
-          newStatus: payload.newStatus,
-          timestamp: new Date(),
-        },
-      })
+      this.jobService
+        .getJob(String(payload.jobId))
+        .then(job => {
+          pubSub.publish('jobStatusChanged', {
+            jobId: payload.jobId,
+            jobStatusChanged: this.mapToEntity(job),
+          })
+        })
+        .catch(error => {
+          this.logger.error(`Failed to publish jobStatusChanged for ${payload.jobId}`, error?.stack || String(error))
+        })
     })
 
     this.eventEmitter.on('job.progressUpdated', payload => {
@@ -164,30 +174,38 @@ export class JobResolver {
 
     this.eventEmitter.on('job.completed', payload => {
       this.logger.log(`Job completed: ${payload.jobId} with ${payload.itemsScraped} items`)
-      pubSub.publish('jobStatusChanged', {
-        jobId: payload.jobId,
-        jobStatusChanged: {
-          jobId: payload.jobId,
-          status: 'COMPLETED',
-          itemsScraped: payload.itemsScraped,
-          duration: payload.duration,
-          timestamp: new Date(),
-        },
-      })
+      this.jobService
+        .getJob(String(payload.jobId))
+        .then(job => {
+          pubSub.publish('jobStatusChanged', {
+            jobId: payload.jobId,
+            jobStatusChanged: this.mapToEntity(job),
+          })
+        })
+        .catch(error => {
+          this.logger.error(
+            `Failed to publish jobStatusChanged (completed) for ${payload.jobId}`,
+            error?.stack || String(error),
+          )
+        })
     })
 
     this.eventEmitter.on('job.failed', payload => {
       this.logger.log(`Job failed: ${payload.jobId} - ${payload.error}`)
-      pubSub.publish('jobStatusChanged', {
-        jobId: payload.jobId,
-        jobStatusChanged: {
-          jobId: payload.jobId,
-          status: 'FAILED',
-          error: payload.error,
-          errorCode: payload.errorCode,
-          timestamp: new Date(),
-        },
-      })
+      this.jobService
+        .getJob(String(payload.jobId))
+        .then(job => {
+          pubSub.publish('jobStatusChanged', {
+            jobId: payload.jobId,
+            jobStatusChanged: this.mapToEntity(job),
+          })
+        })
+        .catch(error => {
+          this.logger.error(
+            `Failed to publish jobStatusChanged (failed) for ${payload.jobId}`,
+            error?.stack || String(error),
+          )
+        })
     })
 
     this.eventEmitter.on('job.created', payload => {

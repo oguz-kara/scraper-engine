@@ -21,7 +21,7 @@ export class JobProcessor {
     this.progressUpdateInterval = this.configService.get<number>('JOB_PROGRESS_UPDATE_INTERVAL', 5000)
   }
 
-  @Process('scraper.*')
+  @Process('simulate.*')
   async processJob(job: Job<QueueJobData>): Promise<void> {
     const { jobId, provider, attempt } = job.data
 
