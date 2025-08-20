@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common'
 import { Browser, FrameLocator } from 'playwright'
 import { ScrapingProvider } from '@prisma/client'
+import { OnEvent } from '@nestjs/event-emitter'
 import { BaseScraperStrategy } from './base.strategy'
 import { ScraperInput, ScrapedItem } from '../interfaces/scraper-strategy.interface'
 import { SHELL_SELECTORS, SHELL_IFRAME_SELECTORS } from '../constants/shell-selectors.constants'
+import { CheckpointState } from '../../checkpoint/interfaces/checkpoint-state.interface'
 
 @Injectable()
 export class ShellScraperStrategy extends BaseScraperStrategy {
   private readonly shellUrl = 'https://www.shell.com/motorist/find-the-right-oil.html'
   private frame: FrameLocator | null = null
+  private currentState: CheckpointState | null = null
+  private jobId: string | null = null
 
   getProvider(): ScrapingProvider {
     return ScrapingProvider.SHELL
@@ -103,17 +107,42 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
     jobId: string,
     input: ScraperInput,
     onProgress: (processed: number, total: number) => void,
+    checkpoint?: CheckpointState,
   ): AsyncGenerator<ScrapedItem> {
+    this.jobId = jobId
     const searchTerms = input.searchTerms || []
     const total = searchTerms.length
 
-    console.log(`Starting Shell scraping for ${total} search terms`)
+    // Initialize or restore state
+    let startIndex = 0
+    let itemsScraped = 0
+    
+    if (checkpoint) {
+      // Restore from checkpoint
+      this.currentState = checkpoint
+      await this.restoreBrowserStateFromCheckpoint(checkpoint.browser)
+      
+      startIndex = checkpoint.progress.currentSearchTermIndex
+      itemsScraped = checkpoint.progress.itemsScraped
+      
+      console.log(`Resuming Shell scraping from checkpoint: term ${startIndex}/${total}, ${itemsScraped} items scraped`)
+    } else {
+      // Start fresh
+      this.currentState = this.initializeState(searchTerms)
+      console.log(`Starting Shell scraping for ${total} search terms`)
+    }
 
-    for (let i = 0; i < searchTerms.length; i++) {
+    for (let i = startIndex; i < searchTerms.length; i++) {
       const searchTerm = searchTerms[i]
 
       try {
         console.log(`Processing search term ${i + 1}/${total}: "${searchTerm}"`)
+
+        // Update state
+        if (this.currentState) {
+          this.currentState.progress.currentSearchTermIndex = i
+          this.currentState.progress.currentResultIndex = 0
+        }
 
         // Search for the model
         await this.searchModel(searchTerm)
@@ -122,8 +151,15 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
         const results = await this.getSearchResults()
         console.log(`Found ${results.length} results for "${searchTerm}"`)
 
-        for (const result of results) {
+        for (let j = 0; j < results.length; j++) {
+          const result = results[j]
+          
           try {
+            // Update state for current result
+            if (this.currentState) {
+              this.currentState.progress.currentResultIndex = j
+            }
+
             // Select the result
             await this.selectResult(result)
 
@@ -159,6 +195,12 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
                 },
               }
 
+              // Update state with scraped item
+              if (this.currentState) {
+                this.currentState.progress.itemsScraped++
+                this.currentState.context.lastScrapedItem = item
+              }
+
               yield item
               this.emitItem(jobId, item)
             }
@@ -167,9 +209,26 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
             await this.navigateBack()
           } catch (error) {
             console.error(`Error processing result for "${searchTerm}":`, error)
+            
+            // Record error in state
+            if (this.currentState) {
+              this.currentState.context.errors.push({
+                searchTerm,
+                error: error.message,
+                timestamp: new Date(),
+              })
+            }
+            
             this.emitError(jobId, error)
             // Continue with next result
           }
+        }
+
+        // Mark search term as processed
+        if (this.currentState) {
+          this.currentState.progress.processedSearchTerms.push(searchTerm)
+          this.currentState.progress.remainingSearchTerms = searchTerms.slice(i + 1)
+          this.currentState.context.lastSuccessfulSearchTerm = searchTerm
         }
 
         // Clear search and prepare for next term
@@ -178,8 +237,19 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
         // Update progress
         onProgress(i + 1, total)
         this.emitProgress(jobId, i + 1, total)
+        
       } catch (error) {
         console.error(`Error processing search term "${searchTerm}":`, error)
+        
+        // Record error in state
+        if (this.currentState) {
+          this.currentState.context.errors.push({
+            searchTerm,
+            error: error.message,
+            timestamp: new Date(),
+          })
+        }
+        
         this.emitError(jobId, error)
         // Continue with next search term
       }
@@ -584,6 +654,145 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
       }
     } catch (error) {
       console.error('Error during cleanup:', error)
+    }
+  }
+
+  // Checkpoint support methods
+  private initializeState(searchTerms: string[]): CheckpointState {
+    return {
+      progress: {
+        currentSearchTermIndex: 0,
+        currentResultIndex: 0,
+        totalSearchTerms: searchTerms.length,
+        processedSearchTerms: [],
+        remainingSearchTerms: [...searchTerms],
+        itemsScraped: 0,
+      },
+      browser: {
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {},
+        currentUrl: '',
+      },
+      context: {
+        errors: [],
+      },
+      metadata: {
+        provider: 'SHELL',
+        strategyVersion: '1.0.0',
+        checkpointVersion: '1.0.0',
+        timestamp: new Date(),
+      },
+    }
+  }
+
+  private async restoreBrowserStateFromCheckpoint(browserState: any): Promise<void> {
+    try {
+      if (!this.context || !this.page) {
+        return
+      }
+
+      // Restore cookies
+      if (browserState.cookies && Array.isArray(browserState.cookies)) {
+        await this.context.addCookies(browserState.cookies)
+      }
+
+      // Navigate to saved URL if it's different
+      if (browserState.currentUrl && browserState.currentUrl !== this.page.url()) {
+        await this.page.goto(browserState.currentUrl, {
+          waitUntil: 'networkidle',
+          timeout: 30000,
+        })
+      }
+
+      // Restore localStorage
+      if (browserState.localStorage && typeof browserState.localStorage === 'object') {
+        await this.page.evaluate(localStorageData => {
+          Object.keys(localStorageData).forEach(key => {
+            localStorage.setItem(key, localStorageData[key])
+          })
+        }, browserState.localStorage)
+      }
+
+      console.log('Browser state restored from checkpoint')
+    } catch (error) {
+      console.error('Error restoring browser state from checkpoint:', error)
+      // Don't throw - continue with current state
+    }
+  }
+
+  private async captureBrowserState(): Promise<any> {
+    if (!this.context || !this.page) {
+      return {
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {},
+        currentUrl: '',
+      }
+    }
+
+    try {
+      const cookies = await this.context.cookies()
+      const currentUrl = this.page.url()
+
+      // Capture localStorage
+      const localStorage = await this.page.evaluate(() => {
+        const items: Record<string, string> = {}
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i)
+          if (key) {
+            items[key] = window.localStorage.getItem(key) || ''
+          }
+        }
+        return items
+      })
+
+      // Capture sessionStorage
+      const sessionStorage = await this.page.evaluate(() => {
+        const items: Record<string, string> = {}
+        for (let i = 0; i < window.sessionStorage.length; i++) {
+          const key = window.sessionStorage.key(i)
+          if (key) {
+            items[key] = window.sessionStorage.getItem(key) || ''
+          }
+        }
+        return items
+      })
+
+      return {
+        cookies,
+        localStorage,
+        sessionStorage,
+        currentUrl,
+      }
+    } catch (error) {
+      console.error('Error capturing browser state:', error)
+      return {
+        cookies: [],
+        localStorage: {},
+        sessionStorage: {},
+        currentUrl: this.page?.url() || '',
+      }
+    }
+  }
+
+  @OnEvent('checkpoint.requestState')
+  async handleStateRequest(data: { jobId: string; timeout?: number }): Promise<void> {
+    if (data.jobId === this.jobId && this.currentState) {
+      try {
+        // Update browser state in current state
+        this.currentState.browser = await this.captureBrowserState()
+        this.currentState.metadata.timestamp = new Date()
+
+        // Emit current state
+        this.eventEmitter.emit('checkpoint.stateProvided', {
+          jobId: this.jobId,
+          state: this.currentState,
+          timestamp: new Date(),
+        })
+      } catch (error) {
+        console.error('Error providing checkpoint state:', error)
+      }
     }
   }
 }

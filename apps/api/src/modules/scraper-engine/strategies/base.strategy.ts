@@ -20,6 +20,7 @@ export abstract class BaseScraperStrategy implements ScraperStrategy {
     jobId: string,
     input: ScraperInput,
     onProgress: (processed: number, total: number) => void,
+    checkpoint?: any,
   ): AsyncGenerator<ScrapedItem>
 
   abstract cleanup(): Promise<void>

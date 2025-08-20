@@ -5,6 +5,7 @@ import { BrowserManagerService } from './services/browser-manager.service'
 import { ScraperOrchestratorService } from './services/scraper-orchestrator.service'
 import { ScrapingProcessor } from './processors/scraping.processor'
 import { JobManagerModule } from '../job-manager/job-manager.module'
+import { CheckpointModule } from '../checkpoint/checkpoint.module'
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { JobManagerModule } from '../job-manager/job-manager.module'
       },
     }),
     JobManagerModule, // Import to use JobService
+    CheckpointModule, // Import to use CheckpointService
   ],
   providers: [BrowserManagerService, ScraperOrchestratorService, ScrapingProcessor],
   exports: [ScraperOrchestratorService, BrowserManagerService],

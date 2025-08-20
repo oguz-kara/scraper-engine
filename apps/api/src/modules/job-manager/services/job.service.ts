@@ -17,7 +17,6 @@ import {
   JobCannotBePausedException,
   JobCannotBeResumedException,
   JobCannotBeCancelledException,
-  JobProcessingFailedException,
 } from '../exceptions/job.exceptions'
 import { JobProgress, PaginatedResult, JobFilter, PaginationParams } from '../interfaces/job-input.interface'
 import { QueueJobData, JobEvents } from '../interfaces/job-events.interface'

@@ -3,7 +3,7 @@ import { BullModule } from '@nestjs/bull'
 import { EventEmitterModule } from '@nestjs/event-emitter'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
-import { PrismaService } from '../../common/database/prisma.service'
+import { DatabaseModule } from '../../common/database/database.module'
 import { JobRepository } from './repositories/job.repository'
 import { JobService } from './services/job.service'
 import { JobProcessor } from './processors/job.processor'
@@ -13,6 +13,7 @@ import { JobResolver } from './resolvers/job.resolver'
   imports: [
     ConfigModule,
     EventEmitterModule,
+    DatabaseModule,
     BullModule.registerQueueAsync({
       name: 'scraper',
       imports: [ConfigModule],
@@ -38,7 +39,7 @@ import { JobResolver } from './resolvers/job.resolver'
       inject: [ConfigService],
     }),
   ],
-  providers: [PrismaService, JobRepository, JobService, JobProcessor, JobResolver],
+  providers: [JobRepository, JobService, JobProcessor, JobResolver],
   exports: [JobService, JobRepository],
 })
 export class JobManagerModule {}

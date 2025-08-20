@@ -7,6 +7,8 @@ import { BullModule } from '@nestjs/bull'
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default'
 import { JobManagerModule } from './modules/job-manager/job-manager.module'
 import { ScraperEngineModule } from './modules/scraper-engine/scraper-engine.module'
+import { CheckpointModule } from './modules/checkpoint/checkpoint.module'
+import { DataProcessorModule } from './modules/data-processor/data-processor.module'
 
 @Module({
   imports: [
@@ -19,7 +21,7 @@ import { ScraperEngineModule } from './modules/scraper-engine/scraper-engine.mod
       autoSchemaFile: true,
       playground: false,
       introspection: true,
-      include: [JobManagerModule, ScraperEngineModule],
+      include: [JobManagerModule, ScraperEngineModule, CheckpointModule, DataProcessorModule],
       path: '/graphql',
       plugins: [ApolloServerPluginLandingPageLocalDefault()],
       subscriptions: {
@@ -38,6 +40,8 @@ import { ScraperEngineModule } from './modules/scraper-engine/scraper-engine.mod
     }),
     JobManagerModule,
     ScraperEngineModule,
+    CheckpointModule,
+    DataProcessorModule,
   ],
 })
 export class AppModule {}

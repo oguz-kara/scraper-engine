@@ -5,6 +5,8 @@ import { Browser } from 'playwright'
 import { BrowserManagerService } from './browser-manager.service'
 import { BaseScraperStrategy } from '../strategies/base.strategy'
 import { ShellScraperStrategy } from '../strategies/shell.strategy'
+import { CheckpointService } from '../../checkpoint/services/checkpoint.service'
+import { CheckpointRestoreService } from '../../checkpoint/services/checkpoint-restore.service'
 
 @Injectable()
 export class ScraperOrchestratorService implements OnModuleInit {
@@ -13,6 +15,8 @@ export class ScraperOrchestratorService implements OnModuleInit {
   constructor(
     private browserManager: BrowserManagerService,
     private eventEmitter: EventEmitter2,
+    private checkpointService: CheckpointService,
+    private checkpointRestoreService: CheckpointRestoreService,
   ) {}
 
   onModuleInit() {
@@ -32,7 +36,7 @@ export class ScraperOrchestratorService implements OnModuleInit {
     console.log(`Registered ${this.strategies.size} scraper strategies:`, Array.from(this.strategies.keys()))
   }
 
-  async executeJob(job: ScrapingJob): Promise<void> {
+  async executeJob(job: ScrapingJob, resumeFromCheckpoint?: boolean): Promise<void> {
     const startTime = Date.now()
     console.log(`Starting scraper execution for job ${job.id} (${job.provider})`)
 
@@ -42,8 +46,20 @@ export class ScraperOrchestratorService implements OnModuleInit {
     }
 
     let browser: Browser | null = null
+    let checkpoint: any = null
 
     try {
+      // Check for existing checkpoint if resuming
+      if (resumeFromCheckpoint) {
+        const resumeResult = await this.checkpointRestoreService.prepareJobResumption(job)
+        if (resumeResult.shouldResume && resumeResult.checkpoint) {
+          checkpoint = resumeResult.checkpoint
+          console.log(`Job ${job.id} will resume: ${resumeResult.message}`)
+        } else {
+          console.log(`Job ${job.id} will start fresh: ${resumeResult.message}`)
+        }
+      }
+
       // Launch browser for this job
       browser = await this.browserManager.launchBrowser(job.id)
       console.log(`Browser launched for job ${job.id}`)
@@ -55,6 +71,9 @@ export class ScraperOrchestratorService implements OnModuleInit {
       await strategy.initialize(browser)
       console.log(`Strategy initialized for job ${job.id}`)
 
+      // Initialize checkpointing system
+      await this.checkpointService.initializeCheckpointing(job)
+
       // Emit job started event
       this.eventEmitter.emit('job.started', {
         jobId: job.id,
@@ -62,18 +81,23 @@ export class ScraperOrchestratorService implements OnModuleInit {
         startedAt: new Date(),
       })
 
-      // Execute scraping with progress tracking
-      let itemCount = 0
-      const generator = strategy.scrape(job.id, job.input as any, (processed, total) => {
-        // Emit progress update
-        this.eventEmitter.emit('job.progressUpdated', {
-          jobId: job.id,
-          percentage: total > 0 ? (processed / total) * 100 : 0,
-          itemsScraped: itemCount,
-          itemsPerSecond: this.calculateItemsPerSecond(itemCount, startTime),
-          timestamp: new Date(),
-        })
-      })
+      // Execute scraping with progress tracking and checkpoint support
+      let itemCount = checkpoint?.progress?.itemsScraped || 0
+      const generator = strategy.scrape(
+        job.id, 
+        job.input as any, 
+        (processed, total) => {
+          // Emit progress update
+          this.eventEmitter.emit('job.progressUpdated', {
+            jobId: job.id,
+            percentage: total > 0 ? (processed / total) * 100 : 0,
+            itemsScraped: itemCount,
+            itemsPerSecond: this.calculateItemsPerSecond(itemCount, startTime),
+            timestamp: new Date(),
+          })
+        },
+        checkpoint // Pass checkpoint to strategy
+      )
 
       // Process scraped items as they come
       for await (const item of generator) {

@@ -28,6 +28,7 @@ export interface ScraperStrategy {
     jobId: string,
     input: ScraperInput,
     onProgress: (processed: number, total: number) => void,
+    checkpoint?: any,
   ): AsyncGenerator<ScrapedItem>
   cleanup(): Promise<void>
   saveBrowserState(): Promise<any>
