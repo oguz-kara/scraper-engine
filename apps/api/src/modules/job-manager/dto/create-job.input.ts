@@ -8,6 +8,7 @@ export enum ScrapingProvider {
   CASTROL = 'CASTROL',
   GOOGLE = 'GOOGLE',
   LINKEDIN = 'LINKEDIN',
+  TEST = 'TEST',
 }
 
 registerEnumType(ScrapingProvider, {

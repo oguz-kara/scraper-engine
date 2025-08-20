@@ -1,62 +1,68 @@
 export const SHELL_SELECTORS = {
-  // Search elements
-  searchInput:
-    'input[type="search"], input[placeholder*="search"], input[placeholder*="Search"], #search-input, .search-input',
-  searchButton:
-    'button[type="submit"], button:has-text("Search"), button:has-text("search"), #search-button, .search-button',
-  clearButton:
-    'button[aria-label="Clear"], button:has-text("Clear"), button:has-text("clear"), #clear-button, .clear-button',
-
-  // Results elements
-  resultsContainer: '[data-results], .results-container, #results, .search-results, .results',
-  resultItem: '[data-result-item], .result-item, .search-result, .vehicle-option, .car-model',
-  modelName: '[data-model-name], .model-name, .vehicle-name, .car-name, .model',
-  modelYear: '[data-model-year], .model-year, .year, .vehicle-year',
-
-  // Product page elements
-  productContainer: '[data-products], .products-container, #products, .product-recommendations, .oil-products',
-  productCategory: '[data-product-category], .product-category, .oil-category, .category-section',
-  categoryTitle: '[data-category-title], .category-title, .category-name, h3, h4',
-  productItem: '[data-product-item], .product-item, .oil-product, .product',
-  productName: '[data-product-name], .product-name, .oil-name, .name',
-  productGrade: '[data-product-grade], .product-grade, .grade, .viscosity',
-  productVolume: '[data-product-volume], .product-volume, .volume, .size',
-  productDescription: '[data-product-description], .product-description, .description',
+  // Category selection
+  categoriesList: 'ul.iframe-list.list-1LGB5dx',
+  categoryItems:
+    'ul.iframe-list.list-1LGB5dx li[role="option"] a.option-3DQsuX8, ul.iframe-list.list-1LGB5dx li[role="option"] a, ul.iframe-list li[role="option"] a',
+  categoryItemByText: (text: string) => `ul.iframe-list.list-1LGB5dx li[role="option"] a:has-text("${text}")`,
 
   // Navigation
-  backButton: 'button:has-text("Back"), button:has-text("back"), button[aria-label="Back"], #back-button, .back-button',
-  nextButton: 'button:has-text("Next"), button:has-text("next"), button[aria-label="Next"], #next-button, .next-button',
+  backButton: 'button.back-button-2vAH8oM[aria-label="Home"]',
+  homeButton: 'button[aria-label="Home"]',
+
+  // Search form
+  searchForm: 'div.search-form-1sDkgBA',
+  searchInput: 'input[name="model"][placeholder="Search by make and model"]',
+  searchSubmitButton: 'button.submit-41lbJN7',
+  searchIcon: 'span[data-icon="search-small"]',
+  searchInput2: '.input-3eRHBaU > input',
+
+  // Results
+  resultsWrapper: 'div.results-wrapper-xweNxh5',
+  resultsHeader: 'p.header-3QScycK span',
+  resultItems: 'ul.results-3t4ZeVL li.result-item-2YEGk_G',
+  resultButton: 'button.result-link-efvsTu3',
+  resultModel: 'p.car-type-1CWK6Cg',
+  resultDescription: 'div.model-info-w7JYTCw p:nth-child(2)',
+  resultYears: 'p.years-1dxTdAt',
+
+  // Filters (for future use)
+  filtersWrapper: 'div.filters-wrapper-PcWhgpM',
+  yearFilter: 'div[role="combobox"] button:has-text("Year")',
+  fuelTypeFilter: 'div[role="combobox"] button:has-text("Fuel type")',
+  engineSizeFilter: 'div[role="combobox"] button:has-text("Engine Size")',
+
+  // Recommendation page
+  recommendationTitle: 'h1.title-2s_WFVy:has-text("Recommendation")',
+  vehicleInfo: 'h2.search-brand-ymIIQ9x',
+  vehicleBrand: 'h2.search-brand-ymIIQ9x strong',
+  vehicleModel: 'h2.search-brand-ymIIQ9x small',
+
+  // Accordion sections
+  accordionItems: 'div.toggler-1-LMflx',
+  accordionTitle: 'span.title-inner-1xIJJCT',
+  accordionCapacity: 'span.capacity-item-1ehAlIH',
+  accordionRecommendation: 'dl.variants-3KqNOff',
+  accordionRecommendationType: 'dl.variants-3KqNOff dt',
+  accordionRecommendationProduct: 'dl.variants-3KqNOff dd',
+  accordionDataSheets: 'dl.options-rwbdnfP a',
+  accordionToggleButton: 'button.toggle-icon-XpfVZ7m',
 
   // Loading states
-  loadingIndicator: '.loading, .spinner, [data-loading], .loader',
-
-  // Error states
-  errorMessage: '.error, .error-message, [data-error], .alert-error',
-  noResults: '.no-results, .no-data, .empty-results, :has-text("No results")',
-
-  // Generic fallbacks
-  clickableElements: 'button, a, [role="button"], [tabindex="0"]',
-  textInputs: 'input[type="text"], input[type="search"], input:not([type])',
+  loader: 'span[data-icon="loader"]',
+  resultsLoading: 'div.results-wrapper-xweNxh5[style*="opacity: 0"]',
 }
 
-// Iframe-specific selectors for Shell website
+// Legacy selectors for backward compatibility
 export const SHELL_IFRAME_SELECTORS = {
   iframe: 'iframe, frame',
   iframeBody: 'body',
-
-  // Updated based on actual Shell website structure
-  // Note: These will need to be updated after inspecting the real Shell website
-  searchForm: 'form, .search-form, #oil-finder-form',
+  searchForm: 'div.search-form-1sDkgBA',
   vehicleSelect: 'select, .vehicle-selector, #vehicle-dropdown',
   modelSelect: 'select[name*="model"], .model-selector, #model-dropdown',
   yearSelect: 'select[name*="year"], .year-selector, #year-dropdown',
-
-  // Product recommendation sections
   engineOilSection: '.engine-oil, [data-category="engine-oil"], :has-text("Engine Oil")',
   transmissionOilSection: '.transmission-oil, [data-category="transmission"], :has-text("Transmission")',
   antifreezeSection: '.antifreeze, [data-category="antifreeze"], :has-text("Antifreeze")',
-
-  // Product details
   productCard: '.product-card, .oil-recommendation, .product-tile',
   productImage: 'img, .product-image, .oil-image',
   productTitle: 'h3, h4, .product-title, .oil-title',

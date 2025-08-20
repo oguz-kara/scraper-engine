@@ -305,7 +305,8 @@ export enum ScrapingProvider {
   Castrol = 'CASTROL',
   Google = 'GOOGLE',
   Linkedin = 'LINKEDIN',
-  Shell = 'SHELL'
+  Shell = 'SHELL',
+  Test = 'TEST'
 }
 
 export type Subscription = {

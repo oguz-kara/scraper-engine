@@ -17,7 +17,7 @@ export class BrowserManagerService implements OnModuleDestroy {
 
     // Launch new browser with production-ready settings
     const launchOptions: LaunchOptions = {
-      headless: this.configService.get('HEADLESS_BROWSER', 'true') === 'true',
+      headless: this.configService.get('HEADLESS_BROWSER', 'false') === 'true',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -32,13 +32,22 @@ export class BrowserManagerService implements OnModuleDestroy {
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
       ],
-      timeout: this.configService.get('BROWSER_TIMEOUT', 30000),
+      timeout: this.configService.get('BROWSER_TIMEOUT', 60000),
     }
 
     // Add debugging options in development
-    if (this.configService.get('NODE_ENV') === 'development') {
-      launchOptions.slowMo = 100 // Slow down actions for debugging
-      launchOptions.devtools = true // Open devtools
+    const enableDevtools = this.configService.get('BROWSER_DEVTOOLS', 'true') === 'true'
+    const slowMoMs = Number(this.configService.get('BROWSER_SLOWMO_MS', 0))
+    if (enableDevtools) {
+      launchOptions.devtools = true
+    }
+    if (!Number.isNaN(slowMoMs) && slowMoMs > 0) {
+      launchOptions.slowMo = slowMoMs
+    }
+
+    // Optionally use installed Chrome for better parity
+    if (this.configService.get('BROWSER_CHANNEL', '') === 'chrome') {
+      ;(launchOptions as any).channel = 'chrome'
     }
 
     try {

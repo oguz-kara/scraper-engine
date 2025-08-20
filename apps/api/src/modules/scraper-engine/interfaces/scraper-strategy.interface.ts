@@ -3,8 +3,11 @@ import { ScrapingProvider } from '@prisma/client'
 
 export interface ScraperInput {
   searchTerms?: string[] // List of car/machine models to search
+  categories?: string[] // Categories like Cars, Vans, Motorcycles (for Shell)
   urls?: string[] // Direct URLs if any
   filters?: Record<string, any>
+  yearFilter?: string[] // Optional: specific years to filter
+  fuelTypeFilter?: string[] // Optional: Diesel, Petrol, etc.
 }
 
 export interface ScrapedItem {

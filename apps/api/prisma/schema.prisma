@@ -50,6 +50,7 @@ model ScrapingJob {
 
 enum ScrapingProvider {
   SHELL
+  TEST
   CASTROL
   GOOGLE
   LINKEDIN

@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/hooks/use-toast'
 import { ScrapingProvider } from '@/graphql/generated/sdk'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,6 +103,7 @@ export function CreateJobForm() {
     [ScrapingProvider.Castrol]: 'Scrape Castrol service locations and product information',
     [ScrapingProvider.Google]: 'Perform Google searches and scrape search results',
     [ScrapingProvider.Linkedin]: 'Scrape LinkedIn profiles and company data',
+    [ScrapingProvider.Test]: 'Test scraping strategy',
   }
 
   return (

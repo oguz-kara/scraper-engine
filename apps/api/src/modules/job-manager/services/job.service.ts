@@ -244,6 +244,8 @@ export class JobService {
       failedAt: undefined,
     })
 
+    await this.startJob(job.id)
+
     this.eventEmitter.emit('job.statusChanged', {
       jobId: id,
       oldStatus: job.status,

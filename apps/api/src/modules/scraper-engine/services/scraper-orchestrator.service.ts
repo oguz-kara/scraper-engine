@@ -7,6 +7,7 @@ import { BaseScraperStrategy } from '../strategies/base.strategy'
 import { ShellScraperStrategy } from '../strategies/shell.strategy'
 import { CheckpointService } from '../../checkpoint/services/checkpoint.service'
 import { CheckpointRestoreService } from '../../checkpoint/services/checkpoint-restore.service'
+import { TestScraperStrategy } from '../strategies/test.strategy'
 
 @Injectable()
 export class ScraperOrchestratorService implements OnModuleInit {
@@ -26,6 +27,7 @@ export class ScraperOrchestratorService implements OnModuleInit {
   private registerStrategies(): void {
     // Register all available scraper strategies
     this.strategies.set(ScrapingProvider.SHELL, new ShellScraperStrategy(this.eventEmitter))
+    this.strategies.set(ScrapingProvider.TEST, new TestScraperStrategy(this.eventEmitter))
 
     // Future strategies can be added here:
     // this.strategies.set(
