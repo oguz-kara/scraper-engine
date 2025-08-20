@@ -108,7 +108,11 @@ export class ScraperOrchestratorService implements OnModuleInit {
         // Emit item found event for data processor to handle
         this.eventEmitter.emit('scraper.itemFound', {
           jobId: job.id,
+          provider: job.provider,
           item,
+          sourceUrl: item?.metadata?.url,
+          metadata: item?.metadata,
+          timestamp: new Date(),
         })
 
         // Emit progress update every 10 items
@@ -166,9 +170,13 @@ export class ScraperOrchestratorService implements OnModuleInit {
         console.warn(`Strategy cleanup failed for job ${job.id}:`, cleanupError)
       }
 
-      // Close browser
+      // Close browser unless debug flag asks to keep it open
       try {
-        await this.browserManager.closeBrowser(job.id)
+        if (process.env.DEBUG_KEEP_BROWSER_OPEN === 'true') {
+          console.log(`DEBUG_KEEP_BROWSER_OPEN is true, keeping browser open for job ${job.id}`)
+        } else {
+          await this.browserManager.closeBrowser(job.id)
+        }
       } catch (browserError) {
         console.warn(`Browser cleanup failed for job ${job.id}:`, browserError)
       }

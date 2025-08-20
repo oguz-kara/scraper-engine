@@ -91,7 +91,11 @@ export abstract class BaseScraperStrategy implements ScraperStrategy {
   protected emitItem(jobId: string, item: ScrapedItem): void {
     this.eventEmitter.emit('scraper.itemFound', {
       jobId,
+      provider: this.getProvider(),
       item,
+      sourceUrl: (item as any)?.metadata?.url,
+      metadata: (item as any)?.metadata,
+      timestamp: new Date(),
     })
   }
 
