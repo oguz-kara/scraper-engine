@@ -19,10 +19,13 @@ export class ScrapingProcessor {
     private jobService: JobService,
     private scraperOrchestrator: ScraperOrchestratorService,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) {
+    console.log('🚀 [DEBUG] ScrapingProcessor initialized!')
+  }
 
-  @Process('scraper.*')
+  @Process()
   async processJob(job: Job<QueueJobData>): Promise<void> {
+    console.log('📥 [DEBUG] Processor received job:', job.name, job.data)
     const { jobId } = job.data
     const startTime = Date.now()
 
@@ -52,6 +55,8 @@ export class ScrapingProcessor {
         status: JobStatus.RUNNING,
         startedAt: new Date(),
       })
+
+      // Status transitions are handled by services/orchestrator
 
       // Execute scraping via orchestrator
       await this.scraperOrchestrator.executeJob(scrapingJob)

@@ -35,6 +35,8 @@ export class JobService {
   async createJob(input: CreateJobInput): Promise<ScrapingJob> {
     try {
       this.logger.log(`Creating job for provider ${input.provider}`)
+      // Debug input
+      console.log('🔵 [DEBUG] Creating job with input:', input)
 
       const jobData = {
         provider: input.provider,
@@ -43,22 +45,17 @@ export class JobService {
       }
 
       const job = await this.jobRepository.create(jobData)
+      console.log('🔵 [DEBUG] Job created in DB:', job.id)
 
-      await this.scraperQueue.add(
-        `scraper.${job.provider.toLowerCase()}`,
-        {
-          jobId: job.id,
-          provider: job.provider,
-          attempt: 1,
-        },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 5000,
-          },
-        },
-      )
+      if (!this.scraperQueue) {
+        console.error('❌ [DEBUG] Queue is undefined! Not injected properly')
+      } else {
+        console.log('✅ [DEBUG] Queue is available')
+      }
+
+      // Transition to RUNNING and enqueue via startJob to keep state consistent
+      await this.startJob(job.id)
+      console.log('🔵 [DEBUG] Job transitioned to RUNNING and enqueued')
 
       this.logger.log(`Job ${job.id} added to queue`)
 
@@ -125,8 +122,7 @@ export class JobService {
       attempt: job.retryCount + 1,
     }
 
-    const jobPrefix = this.isSimulationMode() ? 'simulate' : 'scraper'
-    await this.scraperQueue.add(`${jobPrefix}.${job.provider.toLowerCase()}`, queueJobData, {
+    await this.scraperQueue.add(queueJobData, {
       attempts: 3,
       backoff: {
         type: 'exponential',
@@ -189,8 +185,7 @@ export class JobService {
       attempt: job.retryCount + 1,
     }
 
-    const jobPrefix = this.isSimulationMode() ? 'simulate' : 'scraper'
-    await this.scraperQueue.add(`${jobPrefix}.${job.provider.toLowerCase()}`, queueJobData, {
+    await this.scraperQueue.add(queueJobData, {
       attempts: 3,
       backoff: {
         type: 'exponential',

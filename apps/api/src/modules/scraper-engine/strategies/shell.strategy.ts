@@ -37,12 +37,19 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
       console.log(`[Shell Browser Console] ${msg.type()}: ${msg.text()}`)
     })
 
+    // Increase navigation timeouts
+    this.page.setDefaultNavigationTimeout(60000)
+    this.page.setDefaultTimeout(30000)
+
     // Navigate to Shell website
     console.log('Navigating to Shell website...')
     await this.page.goto(this.shellUrl, {
-      waitUntil: 'networkidle',
-      timeout: 30000,
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
     })
+
+    // Handle cookie consent if present
+    await this.acceptCookiesIfPresent()
 
     // Wait for and setup iframe
     await this.setupIframe()
@@ -103,6 +110,31 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
     throw new Error('Could not find Shell search interface')
   }
 
+  private async acceptCookiesIfPresent(): Promise<void> {
+    try {
+      const consentSelectors = [
+        '#onetrust-accept-btn-handler',
+        'button#onetrust-accept-btn-handler',
+        'button:has-text("Accept All")',
+        'button:has-text("Accept all")',
+        'button:has-text("Accept")',
+        '[data-testid="cookie-accept"]',
+        '[aria-label*="accept"]',
+      ]
+
+      for (const selector of consentSelectors) {
+        const el = this.page.locator(selector).first()
+        if (await el.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await el.click({ timeout: 2000 }).catch(() => {})
+          console.log(`Cookie consent accepted via selector: ${selector}`)
+          break
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
   async *scrape(
     jobId: string,
     input: ScraperInput,
@@ -116,15 +148,15 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
     // Initialize or restore state
     let startIndex = 0
     let itemsScraped = 0
-    
+
     if (checkpoint) {
       // Restore from checkpoint
       this.currentState = checkpoint
       await this.restoreBrowserStateFromCheckpoint(checkpoint.browser)
-      
+
       startIndex = checkpoint.progress.currentSearchTermIndex
       itemsScraped = checkpoint.progress.itemsScraped
-      
+
       console.log(`Resuming Shell scraping from checkpoint: term ${startIndex}/${total}, ${itemsScraped} items scraped`)
     } else {
       // Start fresh
@@ -153,7 +185,7 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
 
         for (let j = 0; j < results.length; j++) {
           const result = results[j]
-          
+
           try {
             // Update state for current result
             if (this.currentState) {
@@ -209,7 +241,7 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
             await this.navigateBack()
           } catch (error) {
             console.error(`Error processing result for "${searchTerm}":`, error)
-            
+
             // Record error in state
             if (this.currentState) {
               this.currentState.context.errors.push({
@@ -218,7 +250,7 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
                 timestamp: new Date(),
               })
             }
-            
+
             this.emitError(jobId, error)
             // Continue with next result
           }
@@ -237,10 +269,9 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
         // Update progress
         onProgress(i + 1, total)
         this.emitProgress(jobId, i + 1, total)
-        
       } catch (error) {
         console.error(`Error processing search term "${searchTerm}":`, error)
-        
+
         // Record error in state
         if (this.currentState) {
           this.currentState.context.errors.push({
@@ -249,7 +280,7 @@ export class ShellScraperStrategy extends BaseScraperStrategy {
             timestamp: new Date(),
           })
         }
-        
+
         this.emitError(jobId, error)
         // Continue with next search term
       }
