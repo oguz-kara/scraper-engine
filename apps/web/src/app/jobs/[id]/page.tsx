@@ -113,7 +113,7 @@ export default function JobDetailPage() {
   const processorStats = data.getProcessorStats
 
   const isRunning = job.status === 'RUNNING'
-  const hasItems = scrapedItemStats?.totalItems > 0 || processorStats?.itemsStored > 0
+  const hasItems = scrapedItemStats?.totalItems > 0 || (processorStats?.itemsStored || 0) > 0
   const itemCount = scrapedItemStats?.totalItems || processorStats?.itemsStored || 0
 
   // Combine stats for components
@@ -135,12 +135,12 @@ export default function JobDetailPage() {
         </div>
         <div className="flex gap-2 items-center">
           <JobStatusBadge status={job.status} />
-          <JobActions job={job} onActionComplete={refetch} />
+          <JobActions job={job} />
         </div>
       </div>
 
       {/* Progress Section */}
-      {(isRunning || hasItems) && <JobProgress job={job} showDetails />}
+      {(isRunning || hasItems) && <JobProgress job={job} />}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -207,7 +207,7 @@ export default function JobDetailPage() {
         </TabsList>
 
         <TabsContent value="overview">
-          <JobOverview job={job} />
+          <JobOverview job={job as any} />
         </TabsContent>
 
         <TabsContent value="items">
@@ -219,11 +219,11 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="statistics">
-          <JobStatistics job={enhancedJob} />
+          <JobStatistics job={enhancedJob as any} />
         </TabsContent>
 
         <TabsContent value="configuration">
-          <JobConfiguration job={job} />
+          <JobConfiguration job={job as any} />
         </TabsContent>
       </Tabs>
     </div>

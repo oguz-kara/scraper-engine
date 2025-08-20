@@ -84,8 +84,8 @@ export class ScraperOrchestratorService implements OnModuleInit {
       // Execute scraping with progress tracking and checkpoint support
       let itemCount = checkpoint?.progress?.itemsScraped || 0
       const generator = strategy.scrape(
-        job.id, 
-        job.input as any, 
+        job.id,
+        job.input as any,
         (processed, total) => {
           // Emit progress update
           this.eventEmitter.emit('job.progressUpdated', {
@@ -96,7 +96,7 @@ export class ScraperOrchestratorService implements OnModuleInit {
             timestamp: new Date(),
           })
         },
-        checkpoint // Pass checkpoint to strategy
+        checkpoint, // Pass checkpoint to strategy
       )
 
       // Process scraped items as they come

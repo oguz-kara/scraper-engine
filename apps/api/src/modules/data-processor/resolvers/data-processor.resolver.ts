@@ -1,5 +1,6 @@
 import { Resolver, Query, Mutation, Args, ID, Subscription } from '@nestjs/graphql'
 import { Logger } from '@nestjs/common'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 import { DataProcessorService } from '../services/data-processor.service'
 import { BatchQueueService } from '../services/batch-queue.service'
 import { TransformationService } from '../services/transformation.service'
@@ -22,11 +23,20 @@ import {
   UpdateProcessorConfigInput,
 } from '../dto/scraped-item.dto'
 import { PubSub } from 'graphql-subscriptions'
+import { DATA_PROCESSOR_EVENTS, type DataProcessorStatsEvent } from '../events/processor.events'
 
 @Resolver(() => ScrapedItemEntity)
 export class DataProcessorResolver {
   private readonly logger = new Logger(DataProcessorResolver.name)
-  private pubSub = new PubSub()
+  private pubSub = new PubSub() as any
+
+  private getAsyncIterator(trigger: string) {
+    const method = this.pubSub.asyncIterator || this.pubSub.asyncIterableIterator
+    if (typeof method !== 'function') {
+      throw new Error('PubSub does not expose an async iterator method')
+    }
+    return method.call(this.pubSub, trigger)
+  }
 
   constructor(
     private dataProcessorService: DataProcessorService,
@@ -34,7 +44,10 @@ export class DataProcessorResolver {
     private transformationService: TransformationService,
     private deduplicationService: DeduplicationService,
     private scrapedItemRepository: ScrapedItemRepository,
-  ) {}
+    private readonly eventEmitter: EventEmitter2,
+  ) {
+    this.setupEventListeners()
+  }
 
   @Query(() => [ScrapedItemEntity])
   async getScrapedItems(@Args('input') input: GetScrapedItemsInput): Promise<ScrapedItemEntity[]> {
@@ -311,11 +324,35 @@ export class DataProcessorResolver {
 
   @Subscription(() => ProcessorStatsEntity)
   async processorStatsUpdated(@Args('jobId', { type: () => ID }) jobId: string) {
-    return (this.pubSub as any).asyncIterator(`processorStats.${jobId}`)
+    return this.getAsyncIterator(`processorStats.${jobId}`)
   }
 
   @Subscription(() => ScrapedItemEntity)
   async itemProcessed(@Args('jobId', { type: () => ID }) jobId: string) {
-    return (this.pubSub as any).asyncIterator(`itemProcessed.${jobId}`)
+    return this.getAsyncIterator(`itemProcessed.${jobId}`)
+  }
+
+  private setupEventListeners(): void {
+    this.eventEmitter.on(DATA_PROCESSOR_EVENTS.STATS_UPDATED, (payload: DataProcessorStatsEvent) => {
+      try {
+        const successRate = payload.totalProcessed > 0 ? (payload.totalStored / payload.totalProcessed) * 100 : 0
+        const duplicateRate = payload.totalProcessed > 0 ? (payload.totalDuplicates / payload.totalProcessed) * 100 : 0
+
+        this.pubSub.publish(`processorStats.${payload.jobId}`, {
+          processorStatsUpdated: {
+            jobId: payload.jobId,
+            totalItems: payload.totalProcessed,
+            duplicatesSkipped: payload.totalDuplicates,
+            itemsStored: payload.totalStored,
+            transformationErrors: payload.totalErrors,
+            lastProcessedAt: payload.timestamp,
+            successRate,
+            duplicateRate,
+          },
+        })
+      } catch (error) {
+        this.logger.error(`Failed to publish processorStatsUpdated for ${payload.jobId}`, error?.stack || String(error))
+      }
+    })
   }
 }

@@ -44,12 +44,30 @@ export class JobService {
 
       const job = await this.jobRepository.create(jobData)
 
+      await this.scraperQueue.add(
+        `scraper.${job.provider.toLowerCase()}`,
+        {
+          jobId: job.id,
+          provider: job.provider,
+          attempt: 1,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+        },
+      )
+
+      this.logger.log(`Job ${job.id} added to queue`)
+
       this.eventEmitter.emit('job.created', {
         jobId: job.id,
         provider: job.provider,
       } as JobEvents['job.created'])
 
-      this.logger.log(`Successfully created job ${job.id}`)
+      this.logger.log(`Successfully created and queued job ${job.id}`)
       return job
     } catch (error) {
       this.logger.error(`Failed to create job for provider ${input.provider}`, error.stack)
