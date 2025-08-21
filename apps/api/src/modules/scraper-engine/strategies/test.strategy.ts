@@ -5,6 +5,12 @@ import { BaseScraperStrategy } from './base.strategy'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import { ScraperInput } from '../interfaces/scraper-strategy.interface'
 
+type PaginationCheckpoint = {
+  currentIndex: number
+  loadMoreClickCount: number
+  itemsPerLoad: number | null
+}
+
 @Injectable()
 export class TestScraperStrategy extends BaseScraperStrategy {
   constructor(eventEmitter: EventEmitter2) {
@@ -13,6 +19,15 @@ export class TestScraperStrategy extends BaseScraperStrategy {
   private readonly logger = new Logger(TestScraperStrategy.name)
   private mainUrl =
     'https://www.shell.com/motorist/find-the-right-oil/_jcr_content/root/main/section/web_component/links/item0.stream/1748598800968/c910d877e46145bc10752a073dbb53c8b2249603/iframe.html#/gb/en-gb/search/vehicle'
+
+  // Resume-aware pagination state and selectors
+  private readonly resultsSelector = 'li[data-index] .result-link-efvsTu3'
+  private readonly loadMoreSelector = 'button:has-text("Load more search results")'
+  private paginationState: PaginationCheckpoint = {
+    currentIndex: 0,
+    loadMoreClickCount: 0,
+    itemsPerLoad: null,
+  }
 
   getProvider(): ScrapingProvider {
     return ScrapingProvider.TEST
@@ -38,8 +53,6 @@ export class TestScraperStrategy extends BaseScraperStrategy {
     }
 
     this.page = await this.context.newPage()
-
-    // Console logging disabled for cleaner browser experience
 
     // Navigate to Shell main page
     this.logger.log('Navigating to Shell website...')
@@ -97,6 +110,13 @@ export class TestScraperStrategy extends BaseScraperStrategy {
 
     // Brief wait for page to be ready
     await this.page.waitForTimeout(500)
+
+    // Try restore pagination state
+    const restored = this.extractPaginationFromCheckpoint(_checkpoint)
+    if (restored) {
+      this.paginationState = restored
+      this.logger.log(`Restored pagination state: ${JSON.stringify(this.paginationState)}`)
+    }
 
     // Search for Renault Clio and process all results
     const scrapedItems = await this.searchForVehicle('Renault Clio')
@@ -208,240 +228,64 @@ export class TestScraperStrategy extends BaseScraperStrategy {
           })
           if (dropdownContainer) {
             // Use live locator to avoid stale element handles after navigation
-            const resultsSelector = 'li[data-index] .result-link-efvsTu3'
-            const resultsLocator = this.page.locator(resultsSelector)
+            const resultsLocator = this.page.locator(this.resultsSelector)
             const initialCount = await resultsLocator.count()
             this.logger.log(`Found ${initialCount} initial results`)
 
-            // Expand all results by clicking "Load more" until exhausted
+            // Restore once to saved number of clicks and infer page size if needed
+            await this.replayLoadMore(this.paginationState.loadMoreClickCount)
+            await this.inferItemsPerPage()
+
+            // Compute current block bounds
+            let totalResults = await resultsLocator.count()
+            let itemsPerPage = this.paginationState.itemsPerLoad ?? totalResults
+            let startOfBlock = this.paginationState.loadMoreClickCount * itemsPerPage
+            let i = Math.max(this.paginationState.currentIndex, startOfBlock)
+            this.logger.log(`Block start=${startOfBlock}, itemsPerPage=${itemsPerPage}, i=${i}, total=${totalResults}`)
+
             while (true) {
-              const loadMoreButton = this.page.locator('button:has-text("Load more search results")').first()
-              const hasButton = (await loadMoreButton.count()) > 0
-              if (!hasButton) break
+              totalResults = await resultsLocator.count()
+              const endOfBlock = Math.min(startOfBlock + itemsPerPage - 1, Math.max(totalResults - 1, -1))
 
-              const beforeCount = await resultsLocator.count()
-              await loadMoreButton.scrollIntoViewIfNeeded()
-              await loadMoreButton.click()
-
-              try {
-                await this.page.waitForFunction(
-                  args => {
-                    const [selector, prev] = args as [string, number]
-                    return document.querySelectorAll(selector).length > prev
-                  },
-                  [resultsSelector, beforeCount],
-                  { timeout: 5000 },
-                )
-              } catch {
-                const after = await resultsLocator.count()
-                if (after <= beforeCount) {
-                  this.logger.warn('No additional results appeared after clicking Load more; stopping expansion')
-                  break
-                }
-              }
-            }
-
-            // Collect all result URLs
-            const totalResults = await resultsLocator.count()
-            this.logger.log(`Loaded ${totalResults} total results; collecting URLs...`)
-            const urls: string[] = []
-            for (let i = 0; i < totalResults; i++) {
-              try {
-                const href = await resultsLocator.nth(i).getAttribute('href')
-                if (href) {
-                  const absoluteUrl = new URL(href, this.page.url()).toString()
-                  urls.push(absoluteUrl)
-                }
-              } catch (e) {
-                this.logger.warn(`Failed to read href for result ${i + 1}: ${e instanceof Error ? e.message : e}`)
-              }
-            }
-            this.logger.log(`Collected ${urls.length} URLs. Sample: ${urls.slice(0, 5).join(' | ')}`)
-
-            // Fallback: if there are results but no hrefs, click-through each result sequentially
-            if (urls.length === 0 && totalResults > 0) {
-              this.logger.warn('No href attributes found on results; switching to click-through mode')
-
-              let processedClickThrough = 0
-              const resultsContainerSelector = 'ul.results-3t4ZeVL'
-              const resultItemSelector = 'li[data-index]'
-
-              const seenIndexes = new Set<number>()
-              let safety = 0
-
-              while (processedClickThrough < totalResults && safety < totalResults + 100) {
-                safety++
-
-                // Discover visible items' data-indexes
-                let visibleIndexes: number[] = []
+              for (; i <= endOfBlock; i++) {
                 try {
-                  visibleIndexes = await this.page.evaluate(containerSel => {
-                    const container = document.querySelector(containerSel)
-                    if (!(container instanceof HTMLElement)) return []
-                    const items = Array.from(container.querySelectorAll('li[data-index]'))
-                    const indexes: number[] = []
-                    for (const el of items) {
-                      if (!(el instanceof HTMLElement)) continue
-                      const val = Number(el.getAttribute('data-index') || '-1')
-                      if (Number.isFinite(val) && val >= 0) indexes.push(val)
-                    }
-                    return indexes
-                  }, resultsContainerSelector)
-                } catch (e) {
-                  const errMsg = e instanceof Error ? e.message : String(e)
-                  this.logger.warn(`Failed to read visible indexes: ${errMsg}`)
-                }
-
-                // If nothing visible, try to scroll down to load more
-                if (visibleIndexes.length === 0) {
+                  const resultHandle = resultsLocator.nth(i)
+                  await resultHandle.scrollIntoViewIfNeeded()
+                  await resultHandle.click({ timeout: 5000 })
                   try {
-                    await this.page.evaluate(containerSel => {
-                      const container = document.querySelector(containerSel)
-                      if (container instanceof HTMLElement) {
-                        container.scrollBy({ top: container.clientHeight })
-                      }
-                    }, resultsContainerSelector)
-                    await this.page.waitForTimeout(250)
-                    continue
-                  } catch (err) {
-                    const errMsg = err instanceof Error ? err.message : String(err)
-                    this.logger.warn(`Scroll to reveal items failed: ${errMsg}`)
+                    await this.page.waitForURL(u => u.toString().includes('/equipment/'), { timeout: 10000 })
+                  } catch {
+                    await this.page.waitForSelector(
+                      'h1:has-text("Recommendation"), div[data-testid="recommendation"], .accordion-item-3Svi9jW',
+                      { timeout: 10000 },
+                    )
                   }
-                }
-
-                // Process each visible, unseen index
-                let progressedInThisPass = false
-                for (const idx of visibleIndexes) {
-                  if (seenIndexes.has(idx)) {
-                    continue
-                  }
-                  const button = this.page
-                    .locator(`${resultItemSelector}[data-index="${idx}"] .result-link-efvsTu3`)
-                    .first()
-                  const count = await button.count()
-                  if (count === 0) {
-                    continue
-                  }
-
-                  try {
-                    await button.scrollIntoViewIfNeeded()
-                    await button.click({ timeout: 5000 })
-
-                    // Wait for recommendation
-                    try {
-                      await Promise.race([
-                        this.page.waitForSelector('h1:has-text("Recommendation")', { timeout: 5000 }),
-                        this.page
-                          .waitForSelector('div[data-testid="recommendation"], .accordion-item-3Svi9jW', {
-                            timeout: 5000,
-                          })
-                          .catch(() => null),
-                      ])
-                    } catch (navErr) {
-                      this.logger.warn(
-                        `Recommendation wait failed for index ${idx}: ${navErr instanceof Error ? navErr.message : navErr}`,
-                      )
-                    }
-
-                    const pageData = await this.extractPageDataFrom(this.page, searchTerm, idx + 1)
-                    if (pageData) {
-                      scrapedItems.push(pageData)
-                      processedClickThrough++
-                    }
-
-                    seenIndexes.add(idx)
-                    progressedInThisPass = true
-
-                    // Navigate back
-                    try {
-                      await this.page.goBack({ waitUntil: 'domcontentloaded' })
-                    } catch (backErr) {
-                      this.logger.warn(`goBack failed: ${backErr instanceof Error ? backErr.message : backErr}`)
-                    }
-                    try {
-                      await this.page.waitForSelector(resultsContainerSelector, { timeout: 5000 })
-                    } catch (waitErr) {
-                      const errMsg = waitErr instanceof Error ? waitErr.message : String(waitErr)
-                      this.logger.warn(`Waiting for results after back failed: ${errMsg}`)
-                    }
-                    await this.page.waitForTimeout(200)
-                  } catch (e) {
-                    this.logger.warn(`Click-through failed at data-index ${idx}: ${e instanceof Error ? e.message : e}`)
-                    seenIndexes.add(idx)
-                  }
-                }
-
-                // Scroll to load new items if we didn't progress enough
-                if (!progressedInThisPass) {
-                  try {
-                    await this.page.evaluate(containerSel => {
-                      const container = document.querySelector(containerSel)
-                      if (container instanceof HTMLElement) {
-                        container.scrollBy({ top: container.clientHeight })
-                      }
-                    }, resultsContainerSelector)
-                    await this.page.waitForTimeout(300)
-                  } catch (err) {
-                    const errMsg = err instanceof Error ? err.message : String(err)
-                    this.logger.warn(`Scroll to next page failed: ${errMsg}`)
-                  }
+                  const pageData = await this.extractPageDataFrom(this.page, searchTerm, i + 1)
+                  if (pageData) scrapedItems.push(pageData)
+                  await this.page.goBack({ waitUntil: 'domcontentloaded' })
+                  await this.page.waitForSelector('ul.results-3t4ZeVL', { timeout: 5000 })
+                  this.paginationState.currentIndex = i + 1
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : String(err)
+                  this.logger.warn(`Block item ${i + 1} failed: ${msg}`)
+                  continue
                 }
               }
 
-              this.logger.log(`Click-through mode processed ${processedClickThrough}/${totalResults} results`)
-
-              // After click-through, return items
-              return scrapedItems
-            }
-
-            // Visit and extract with small concurrency pool
-            const concurrencyEnv = Number(process.env.SCRAPER_CONCURRENCY || '')
-            const concurrency = Number.isFinite(concurrencyEnv) && concurrencyEnv > 0 ? concurrencyEnv : 3
-            this.logger.log(`Starting detail processing for ${urls.length} URLs with concurrency=${concurrency}`)
-
-            let processed = 0
-            await this.processUrlsWithConcurrency(urls, concurrency, async (url, index) => {
-              this.logger.log(`→ [${index + 1}/${urls.length}] Opening detail: ${url}`)
-              const detailPage = await this.context.newPage()
-              try {
-                await detailPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
-                const pageData = await this.extractPageDataFrom(detailPage, searchTerm, index + 1)
-                if (pageData) {
-                  scrapedItems.push(pageData)
-                  this.logger.log(`✓ [${index + 1}/${urls.length}] Extracted detail.`)
-                } else {
-                  this.logger.warn(`× [${index + 1}/${urls.length}] No data extracted.`)
-                }
-              } catch (e) {
-                this.logger.warn(`Failed to process detail ${index + 1}: ${e instanceof Error ? e.message : e}`)
-              } finally {
-                try {
-                  await detailPage.close()
-                } catch (closeErr) {
-                  const errMsg = closeErr instanceof Error ? closeErr.message : String(closeErr)
-                  this.logger.warn(`Failed to close detail page: ${errMsg}`)
-                }
-                processed++
+              // Move to next block
+              const before = await this.getResultsLocator().count()
+              const after = await this.clickLoadMoreWithWait(before, 8000)
+              if (after <= before) {
+                this.logger.log('No more blocks to load. Finishing.')
+                break
               }
-            })
-
-            this.logger.log(`Finished processing ${processed}/${urls.length} detail pages`)
-
-            // If we collected URLs but processed none, expose clear diagnostics
-            if (urls.length > 0 && processed === 0) {
-              const msg = `Collected ${urls.length} URLs but processed 0. Check selectors, navigation, or network.`
-              this.logger.error(msg)
-
-              // Optionally pause the context for inspection
-              if (process.env.DEBUG_KEEP_BROWSER_OPEN === 'true') {
-                this.logger.warn('DEBUG_KEEP_BROWSER_OPEN is true; pausing 30s to inspect browser before returning...')
-                await this.page.waitForTimeout(30000)
+              this.paginationState.loadMoreClickCount += 1
+              if (this.paginationState.itemsPerLoad == null || after - before !== itemsPerPage) {
+                itemsPerPage = after - before
+                this.paginationState.itemsPerLoad = itemsPerPage
               }
-
-              // Optionally fail the job to surface the issue in UI
-              if (process.env.FAIL_ON_ZERO_DETAIL === 'true') {
-                throw new Error(msg)
-              }
+              startOfBlock += itemsPerPage
+              i = startOfBlock
             }
           } else {
             this.logger.warn('Dropdown results not found')
@@ -521,5 +365,123 @@ export class TestScraperStrategy extends BaseScraperStrategy {
       active.push(runNext())
     }
     await Promise.all(active)
+  }
+
+  // ---------- Resume helpers ----------
+
+  private extractPaginationFromCheckpoint(rawCheckpoint: any): PaginationCheckpoint | null {
+    try {
+      const candidates = [
+        rawCheckpoint?.state?.pagination,
+        rawCheckpoint?.pagination,
+        rawCheckpoint?.browserState?.pagination,
+      ].filter(Boolean)
+      if (candidates.length > 0) {
+        const p = candidates[0] as PaginationCheckpoint
+        if (
+          typeof p.currentIndex === 'number' &&
+          typeof p.loadMoreClickCount === 'number' &&
+          (typeof p.itemsPerLoad === 'number' || p.itemsPerLoad === null)
+        ) {
+          return { ...p }
+        }
+      }
+    } catch {
+      console.log('No pagination checkpoint found')
+    }
+    return null
+  }
+
+  private getResultsLocator() {
+    return this.page.locator(this.resultsSelector)
+  }
+
+  private async clickLoadMoreWithWait(prevCount: number, timeoutMs = 8000): Promise<number> {
+    const btn = this.page.locator(this.loadMoreSelector).first()
+    if ((await btn.count()) === 0) return prevCount
+
+    await btn.scrollIntoViewIfNeeded()
+    await btn.click()
+
+    try {
+      await this.page.waitForFunction(
+        args => {
+          const [selector, prev] = args as [string, number]
+          return document.querySelectorAll(selector).length > prev
+        },
+        [this.resultsSelector, prevCount],
+        { timeout: timeoutMs },
+      )
+    } catch {
+      // proceed; maybe it still loaded
+    }
+
+    return await this.getResultsLocator().count()
+  }
+
+  private async replayLoadMore(targetClicks: number): Promise<void> {
+    if (targetClicks <= 0) return
+    const resultsLocator = this.getResultsLocator()
+    let clicks = 0
+    while (clicks < targetClicks) {
+      const before = await resultsLocator.count()
+      const after = await this.clickLoadMoreWithWait(before, 8000)
+      if (after <= before) break
+      clicks++
+      if (this.paginationState.itemsPerLoad == null) {
+        this.paginationState.itemsPerLoad = after - before
+      }
+    }
+  }
+
+  private async inferItemsPerPage(): Promise<void> {
+    if (this.paginationState.itemsPerLoad != null) return
+    const before = await this.getResultsLocator().count()
+    const after = await this.clickLoadMoreWithWait(before, 6000)
+    if (after > before) {
+      this.paginationState.itemsPerLoad = after - before
+      this.paginationState.loadMoreClickCount += 1
+    }
+  }
+
+  private async restorePaginationState(pagination: PaginationCheckpoint): Promise<void> {
+    const targetClicks = pagination.loadMoreClickCount
+    if (targetClicks <= 0) return
+
+    let currentCount = await this.getResultsLocator().count()
+    for (let i = 0; i < targetClicks; i++) {
+      const before = currentCount
+      currentCount = await this.clickLoadMoreWithWait(before, 8000)
+
+      // Infer itemsPerLoad on first successful click
+      if (pagination.itemsPerLoad == null && currentCount > before) {
+        pagination.itemsPerLoad = currentCount - before
+      }
+    }
+  }
+
+  private async expandToIndex(targetIndex: number): Promise<void> {
+    let count = await this.getResultsLocator().count()
+    while (count <= targetIndex) {
+      const before = count
+      const after = await this.clickLoadMoreWithWait(before, 8000)
+      if (after <= before) {
+        throw new Error(`Cannot expand results to reach index ${targetIndex}; stuck at ${after}`)
+      }
+      count = after
+      this.paginationState.loadMoreClickCount += 1
+
+      if (this.paginationState.itemsPerLoad == null && after > before) {
+        this.paginationState.itemsPerLoad = after - before
+      }
+    }
+  }
+
+  async saveBrowserState(): Promise<any> {
+    const base = await super.saveBrowserState()
+    return {
+      ...base,
+      pagination: { ...this.paginationState },
+    }
   }
 }
